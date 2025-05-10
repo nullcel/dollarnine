@@ -76,10 +76,13 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>C:\Users\dimad\Desktop\nullcelproject\freedom\rootkitapi;C:\Users\dimad\Documents\Detours-main\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>Shlwapi.lib;ntdll.lib;detours.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Users\dimad\Documents\Detours-main\lib.X86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -127,7 +130,34 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\rootkitapi\clist.c" />
+    <ClCompile Include="..\rootkitapi\peb.c" />
+    <ClCompile Include="..\rootkitapi\RKconfig.c" />
+    <ClCompile Include="..\rootkitapi\RKheader.c" />
+    <ClCompile Include="..\rootkitapi\RKprocess.c" />
+    <ClCompile Include="..\rootkitapi\RKwin.c" />
+    <ClCompile Include="..\rootkitapi\ReflectiveDllMain.c" />
+    <ClCompile Include="..\rootkit\Config.c" />
+    <ClCompile Include="..\rootkit\Hooks.c" />
+    <ClCompile Include="..\rootkit\RK.c" />
+    <ClCompile Include="..\rootkit\Rootkit.c" />
     <ClCompile Include="main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\rootkitapi\clist.h" />
+    <ClInclude Include="..\rootkitapi\ntdll.h" />
+    <ClInclude Include="..\rootkitapi\peb.h" />
+    <ClInclude Include="..\rootkitapi\RKconfig.h" />
+    <ClInclude Include="..\rootkitapi\RKdef.h" />
+    <ClInclude Include="..\rootkitapi\RKheader.h" />
+    <ClInclude Include="..\rootkitapi\RKmindef.h" />
+    <ClInclude Include="..\rootkitapi\RKprocess.h" />
+    <ClInclude Include="..\rootkitapi\RKwin.h" />
+    <ClInclude Include="..\rootkitapi\ReflectiveDllMain.h" />
+    <ClInclude Include="..\rootkit\Config.h" />
+    <ClInclude Include="..\rootkit\detours.h" />
+    <ClInclude Include="..\rootkit\Hooks.h" />
+    <ClInclude Include="..\rootkit\Rootkit.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

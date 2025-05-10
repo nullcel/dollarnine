@@ -13,10 +13,93 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Source Files\rootkit">
+      <UniqueIdentifier>{cc19a64c-b0d5-466d-8b45-203bb04e66e8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\rootkitapi">
+      <UniqueIdentifier>{f8e27ae1-c370-4c34-9b5b-2b0a3ed87d6b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\rootkitapi\RKprocess.c">
+      <Filter>Source Files\rootkitapi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\rootkitapi\RKwin.c">
+      <Filter>Source Files\rootkitapi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\rootkitapi\clist.c">
+      <Filter>Source Files\rootkitapi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\rootkitapi\peb.c">
+      <Filter>Source Files\rootkitapi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\rootkitapi\RKconfig.c">
+      <Filter>Source Files\rootkitapi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\rootkitapi\RKheader.c">
+      <Filter>Source Files\rootkitapi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\rootkit\Hooks.c">
+      <Filter>Source Files\rootkit</Filter>
+    </ClCompile>
+    <ClCompile Include="..\rootkit\RK.c">
+      <Filter>Source Files\rootkit</Filter>
+    </ClCompile>
+    <ClCompile Include="..\rootkit\Rootkit.c">
+      <Filter>Source Files\rootkit</Filter>
+    </ClCompile>
+    <ClCompile Include="..\rootkit\Config.c">
+      <Filter>Source Files\rootkit</Filter>
+    </ClCompile>
+    <ClCompile Include="..\rootkitapi\ReflectiveDllMain.c">
+      <Filter>Source Files\rootkitapi</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\rootkitapi\RKheader.h">
+      <Filter>Source Files\rootkitapi</Filter>
+    </ClInclude>
+    <ClInclude Include="..\rootkitapi\RKmindef.h">
+      <Filter>Source Files\rootkitapi</Filter>
+    </ClInclude>
+    <ClInclude Include="..\rootkitapi\RKprocess.h">
+      <Filter>Source Files\rootkitapi</Filter>
+    </ClInclude>
+    <ClInclude Include="..\rootkitapi\RKwin.h">
+      <Filter>Source Files\rootkitapi</Filter>
+    </ClInclude>
+    <ClInclude Include="..\rootkitapi\clist.h">
+      <Filter>Source Files\rootkitapi</Filter>
+    </ClInclude>
+    <ClInclude Include="..\rootkitapi\ntdll.h">
+      <Filter>Source Files\rootkitapi</Filter>
+    </ClInclude>
+    <ClInclude Include="..\rootkitapi\peb.h">
+      <Filter>Source Files\rootkitapi</Filter>
+    </ClInclude>
+    <ClInclude Include="..\rootkitapi\RKconfig.h">
+      <Filter>Source Files\rootkitapi</Filter>
+    </ClInclude>
+    <ClInclude Include="..\rootkitapi\RKdef.h">
+      <Filter>Source Files\rootkitapi</Filter>
+    </ClInclude>
+    <ClInclude Include="..\rootkit\Hooks.h">
+      <Filter>Source Files\rootkit</Filter>
+    </ClInclude>
+    <ClInclude Include="..\rootkit\Rootkit.h">
+      <Filter>Source Files\rootkit</Filter>
+    </ClInclude>
+    <ClInclude Include="..\rootkit\Config.h">
+      <Filter>Source Files\rootkit</Filter>
+    </ClInclude>
+    <ClInclude Include="..\rootkit\detours.h">
+      <Filter>Source Files\rootkit</Filter>
+    </ClInclude>
+    <ClInclude Include="..\rootkitapi\ReflectiveDllMain.h">
+      <Filter>Source Files\rootkitapi</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

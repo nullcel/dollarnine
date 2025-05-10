@@ -1,3 +1,14 @@
 .exe
 .o
 .ipch
+.obj
+.pdb
+
+.vs
+
+Debug
+Release
+x64
+x86
+bin
+lib
